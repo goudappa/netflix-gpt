@@ -1,8 +1,89 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Header from "./Header";
+import { useDispatch } from "react-redux";
+import { checkValidData } from "../utils/validate";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+} from "firebase/auth";
+import { auth } from "../utils/firebase";
+import { useNavigate } from "react-router-dom";
+import { addUser } from "../utils/userSlice";
 
 const Login = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const name = useRef(null);
+  const email = useRef(null);
+  const password = useRef(null);
+
+  const handleButtonClick = () => {
+    const message = checkValidData(email.current.value, password.current.value);
+    setErrorMessage(message);
+    if (message) return;
+
+    if (!isLoggedIn) {
+      //Sign up logic
+      createUserWithEmailAndPassword(
+        auth,
+        email.current.value,
+        password.current.value,
+      )
+        .then((userCredential) => {
+          // Signed up
+          const user = userCredential.user;
+          updateProfile(user, {
+            displayName: name.current.value,
+            photoURL:
+              "https://lh3.googleusercontent.com/ogw/AF2bZyjsqyBwOY5ekgMYxVttYOj7136_JMh0fjzQb6ue2usDey0=s32-c-mo",
+          })
+            .then(() => {
+              // Profile updated!
+              const { uid, email, displayName, photoURL } = auth.currentUser;
+              dispatch(
+                addUser({
+                  uid: uid,
+                  email: email,
+                  displayName: displayName,
+                  photoURL: photoURL,
+                }),
+              );
+              navigate("/browse");
+            })
+            .catch((error) => {
+              // An error occurred
+              navigate("/error");
+            });
+        })
+        .catch((error) => {
+          const errorCode = error.code;
+          const errorMessage = error.message;
+          setErrorMessage(errorCode + ": " + errorMessage);
+        });
+    } else {
+      //Sign in logic
+      signInWithEmailAndPassword(
+        auth,
+        email.current.value,
+        password.current.value,
+      )
+        .then((userCredential) => {
+          // Signed in
+          const user = userCredential.user;
+          console.log("User signed in:", user);
+          navigate("/browse");
+        })
+        .catch((error) => {
+          const errorCode = error.code;
+          const errorMessage = error.message;
+          setErrorMessage(errorCode + ": " + errorMessage);
+        });
+    }
+  };
 
   const toggleSignIn = (e) => {
     e.preventDefault();
@@ -18,12 +99,16 @@ const Login = () => {
           alt="Netflix Logo"
         />
       </div>
-      <form className="absolute z-10 p-8 bg-black bg-opacity-70 rounded w-96 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+      <form
+        onSubmit={(e) => e.preventDefault()}
+        className="absolute z-10 p-8 bg-black bg-opacity-70 rounded w-96 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+      >
         <h1 className="text-2xl font-bold text-white mb-4">
           {isLoggedIn ? "Sign In" : "Sign Up"}
         </h1>
         {!isLoggedIn && (
           <input
+            ref={name}
             type="text"
             placeholder="Full Name"
             className="p-2 m-2 w-full border border-gray-300 bg-gray-800 text-gray-300 placeholder:text-gray-500 rounded"
@@ -31,17 +116,21 @@ const Login = () => {
         )}
         <input
           type="email"
+          ref={email}
           placeholder="Email"
           className="p-2 m-2 w-full border border-gray-300 bg-gray-800 text-gray-300 placeholder:text-gray-500 rounded"
         />
         <input
           type="password"
+          ref={password}
           placeholder="Password"
           className="p-2 m-2 w-full border border-gray-300 bg-gray-800 text-gray-300 placeholder:text-gray-500 rounded"
         />
+        <p className="text-red-500 text-sm mt-2">{errorMessage}</p>
         <button
           className="p-2 m-2 w-full bg-red-600 text-white rounded"
           type="submit"
+          onClick={handleButtonClick}
         >
           {isLoggedIn ? "Sign In" : "Sign Up"}
         </button>
